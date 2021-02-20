@@ -1,0 +1,52 @@
+#服务配置
+server:
+  port: 10000
+  servlet:
+    context-path: /
+
+spring:
+  profiles:
+    active: dev
+    #配置开发环境
+  #    active: prod
+  #active: pro
+  application:
+    name: apigate
+  cloud:
+    gateway:
+      routes:
+        - id: apiprovider
+          uri: http://127.0.0.1:10100
+          predicates:
+            - Path=/api/v1/**
+            - Method=GET,POST,DELETE,PUT
+          filters:
+            #            - SetPath=/{segment}
+            - RewritePath=/api/v1(?<segment>/?.*), $\{segment}
+        - id: auth
+          uri: http://127.0.0.1:10200
+          predicates:
+            - Path=/login
+            - Method=GET,POST,DELETE,PUT
+          filters:
+            - RewritePath=/login, /oauth/token
+    config:
+      enabled: false
+    nacos:
+      config:
+        server-addr: 192.168.10.10:8848
+        file-extension: yaml
+      discovery:
+        server-addr: 192.168.10.10:8848
+    sentinel:
+      transport:
+        port: 8719
+        dashboard: 192.168.10.10:8080
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: 'http://127.0.0.1:10200/auth'
+
+

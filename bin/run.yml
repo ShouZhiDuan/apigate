@@ -1,0 +1,79 @@
+#ansible playbooks脚本
+---
+# 远程注解
+- hosts: 192.168.10.10
+  # 登录用户
+  remote_user: hz_dev
+
+  vars:
+    project_name: apigate
+    port: 10000
+    local_workspace: ~/jenkins/workspace/{{project_name}}
+    harbor: 192.168.10.16/nvxapp/{{project_name}}
+  # 任务列表
+  tasks:
+    # 构建环境
+    - name: source bash_profile
+      shell: source ~/.bash_profile
+
+    # 本地进行编译打包
+    - name: complie and buid java pakage
+      shell: mvn -f {{local_workspace}}/pom.xml clean install
+      connection: local
+
+    # 获取镜像ID
+    - name: serarch images
+      shell: docker images -q --filter reference={{harbor}}
+      connection: local
+      register: image_ids
+
+
+    # 删除镜像
+    - name: remove local image
+      shell: docker image rm -f {{image_ids.stdout}}
+      connection: local
+      when: image_ids.stdout != ""
+
+    # 制作镜像
+    - name: build image
+      shell: docker build {{local_workspace}} -t {{project_name}}
+      connection: local
+
+    # 镜像推送的云hub
+    - name: tag image
+      shell: docker tag {{project_name}}:latest {{harbor}}
+      connection: local
+
+    - name: push image
+      shell: docker push {{harbor}}
+      connection: local
+
+
+    # 获取容器id
+    - name: serarch containers
+      shell: docker ps -aq --filter name={{project_name}}
+      register: container_id
+
+    # 删除容器
+    - name: stop container
+      shell: docker rm -f {{project_name}}
+      when: container_id.stdout != ""
+
+
+    # 获取镜像ID
+    - name: serarch images
+      shell: docker images -q --filter reference={{harbor}}
+      connection: local
+      register: remote_image_ids
+
+    # 删除镜像
+    - name: remove image
+      shell: docker image rm -f {{remote_image_ids.stdout}}
+      when: remote_image_ids.stdout != ""
+
+    #拉去镜像
+    - name: pull image
+      shell: docker pull {{harbor}}:latest
+
+    - name: run container
+      shell: docker run -it -d --name {{project_name}} -p {{port}}:{{port}} {{harbor}}
